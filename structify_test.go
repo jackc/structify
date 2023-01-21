@@ -61,3 +61,26 @@ func TestMapSkippedField(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Jack", p.FirstName)
 }
+
+func TestMapInt32Field(t *testing.T) {
+	type Person struct {
+		Age int32
+	}
+
+	for i, tt := range []struct {
+		mapValue    any
+		structValue int32
+	}{
+		{mapValue: int32(30), structValue: 30},
+		{mapValue: int64(30), structValue: 30},
+		{mapValue: int(30), structValue: 30},
+		{mapValue: float32(30), structValue: 30},
+		{mapValue: float64(30), structValue: 30},
+		{mapValue: "30", structValue: 30},
+	} {
+		var p Person
+		err := structify.Map(map[string]any{"Age": tt.mapValue}, &p)
+		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
+		assert.Equalf(t, int32(30), p.Age, "%d. %#v", i, tt.mapValue)
+	}
+}
