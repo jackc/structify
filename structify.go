@@ -30,9 +30,23 @@ func Map(m map[string]any, dest any) error {
 
 	for i := 0; i < destElemType.NumField(); i++ {
 		structField := destElemType.Field(i)
-		normalizedName := normalizeFieldName(structField.Name)
-		if mapKey, ok := normalizedNameToMapKey[normalizedName]; ok {
-			value := reflect.ValueOf(m[mapKey])
+		var mapKey string
+		if tag, ok := structField.Tag.Lookup(structTagKey); ok {
+			if tag == "-" {
+				continue // Skip ignored fields
+			}
+			mapKey = tag
+		} else {
+			normalizedName := normalizeFieldName(structField.Name)
+			var found bool
+			mapKey, found = normalizedNameToMapKey[normalizedName]
+			if !found {
+				return fmt.Errorf("structify.Map: m is missing key for %s", structField.Name)
+			}
+		}
+
+		if v, ok := m[mapKey]; ok {
+			value := reflect.ValueOf(v)
 			destElemValue.Field(i).Set(value)
 		} else {
 			return fmt.Errorf("structify.Map: m is missing key for %s", structField.Name)
