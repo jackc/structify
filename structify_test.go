@@ -5,14 +5,25 @@ import (
 
 	"github.com/jackc/structify"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMap(t *testing.T) {
+func TestMapFieldWithoutTagNameVariants(t *testing.T) {
 	type Person struct {
-		Name string
+		FirstName string
 	}
 
-	var p Person
-	structify.Map(map[string]any{"Name": "Jack"}, &p)
-	assert.Equal(t, "Jack", p.Name)
+	for i, tt := range []struct {
+		key string
+	}{
+		{key: "FirstName"},
+		{key: "firstName"},
+		{key: "firstname"},
+		{key: "first_name"},
+	} {
+		var p Person
+		err := structify.Map(map[string]any{tt.key: "Jack"}, &p)
+		require.NoErrorf(t, err, "%d. %s", i, tt.key)
+		assert.Equalf(t, "Jack", p.FirstName, "%d. %s did not map to FirstName field", i, tt.key)
+	}
 }
