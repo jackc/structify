@@ -10,8 +10,21 @@ import (
 
 const structTagKey = "structify"
 
-// Map
+var DefaultParser *Parser
+
+func init() {
+	DefaultParser = &Parser{}
+}
+
 func Map(m map[string]any, dest any) error {
+	return DefaultParser.Map(m, dest)
+}
+
+type Parser struct {
+}
+
+// Map
+func (p *Parser) Map(m map[string]any, dest any) error {
 	normalizedNameToMapKey := make(map[string]string, len(m))
 	for key := range m {
 		normalizedNameToMapKey[normalizeFieldName(key)] = key

@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMapFieldWithoutTagNameVariants(t *testing.T) {
+func TestParserMapFieldWithoutTagNameVariants(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		FirstName string
 	}
@@ -22,47 +24,55 @@ func TestMapFieldWithoutTagNameVariants(t *testing.T) {
 		{key: "first_name"},
 	} {
 		var p Person
-		err := structify.Map(map[string]any{tt.key: "Jack"}, &p)
+		err := parser.Map(map[string]any{tt.key: "Jack"}, &p)
 		require.NoErrorf(t, err, "%d. %s", i, tt.key)
 		assert.Equalf(t, "Jack", p.FirstName, "%d. %s did not map to FirstName field", i, tt.key)
 	}
 }
 
-func TestMapFieldWithTag(t *testing.T) {
+func TestParserMapFieldWithTag(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		FirstName string `structify:"name"`
 	}
 
 	var p Person
-	err := structify.Map(map[string]any{"name": "Jack"}, &p)
+	err := parser.Map(map[string]any{"name": "Jack"}, &p)
 	require.NoError(t, err)
 	assert.Equal(t, "Jack", p.FirstName)
 }
 
-func TestMapMissingRequiredField(t *testing.T) {
+func TestParserMapMissingRequiredField(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		FirstName string
 		LastName  string
 	}
 
 	var p Person
-	err := structify.Map(map[string]any{"name": "Jack"}, &p)
+	err := parser.Map(map[string]any{"name": "Jack"}, &p)
 	require.Error(t, err)
 }
 
-func TestMapSkippedField(t *testing.T) {
+func TestParserMapSkippedField(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		FirstName string
 		LastName  string `structify:"-"`
 	}
 
 	var p Person
-	err := structify.Map(map[string]any{"FirstName": "Jack"}, &p)
+	err := parser.Map(map[string]any{"FirstName": "Jack"}, &p)
 	require.NoError(t, err)
 	assert.Equal(t, "Jack", p.FirstName)
 }
 
-func TestMapInt32Field(t *testing.T) {
+func TestParserMapInt32Field(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		Age int32
 	}
@@ -79,13 +89,15 @@ func TestMapInt32Field(t *testing.T) {
 		{mapValue: "30", structValue: 30},
 	} {
 		var p Person
-		err := structify.Map(map[string]any{"Age": tt.mapValue}, &p)
+		err := parser.Map(map[string]any{"Age": tt.mapValue}, &p)
 		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
 		assert.Equalf(t, int32(30), p.Age, "%d. %#v", i, tt.mapValue)
 	}
 }
 
-func TestMapFloat64Field(t *testing.T) {
+func TestParserMapFloat64Field(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		Age float64
 	}
@@ -102,13 +114,15 @@ func TestMapFloat64Field(t *testing.T) {
 		{mapValue: "30.5", structValue: 30.5},
 	} {
 		var p Person
-		err := structify.Map(map[string]any{"Age": tt.mapValue}, &p)
+		err := parser.Map(map[string]any{"Age": tt.mapValue}, &p)
 		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
 		assert.Equalf(t, tt.structValue, p.Age, "%d. %#v", i, tt.mapValue)
 	}
 }
 
-func TestMapBoolField(t *testing.T) {
+func TestParserMapBoolField(t *testing.T) {
+	parser := &structify.Parser{}
+
 	type Person struct {
 		Alive bool
 	}
@@ -121,7 +135,7 @@ func TestMapBoolField(t *testing.T) {
 		{mapValue: false, structValue: false},
 	} {
 		var p Person
-		err := structify.Map(map[string]any{"Alive": tt.mapValue}, &p)
+		err := parser.Map(map[string]any{"Alive": tt.mapValue}, &p)
 		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
 		assert.Equalf(t, tt.structValue, p.Alive, "%d. %#v", i, tt.mapValue)
 	}
