@@ -82,6 +82,9 @@ func setAny(dst reflect.Value, src any) error {
 	case float64:
 		return setFloat64(dst, float64(src), 64)
 
+	case bool:
+		return setBool(dst, src)
+
 	default:
 		return fmt.Errorf("unsupported input type: %T", src)
 	}
@@ -150,6 +153,19 @@ func setFloat64(dst reflect.Value, src float64, bitSize int) error {
 		dst.SetString(strconv.FormatFloat(src, 'f', -1, bitSize))
 	case reflect.Float32, reflect.Float64:
 		dst.SetFloat(src)
+	default:
+		return fmt.Errorf("cannot assign %T to %v", src, dst.Type())
+	}
+
+	return nil
+}
+
+func setBool(dst reflect.Value, src bool) error {
+	switch dst.Kind() {
+	case reflect.Bool:
+		dst.SetBool(src)
+	case reflect.String:
+		dst.SetString(strconv.FormatBool(src))
 	default:
 		return fmt.Errorf("cannot assign %T to %v", src, dst.Type())
 	}

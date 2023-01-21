@@ -107,3 +107,22 @@ func TestMapFloat64Field(t *testing.T) {
 		assert.Equalf(t, tt.structValue, p.Age, "%d. %#v", i, tt.mapValue)
 	}
 }
+
+func TestMapBoolField(t *testing.T) {
+	type Person struct {
+		Alive bool
+	}
+
+	for i, tt := range []struct {
+		mapValue    any
+		structValue bool
+	}{
+		{mapValue: true, structValue: true},
+		{mapValue: false, structValue: false},
+	} {
+		var p Person
+		err := structify.Map(map[string]any{"Alive": tt.mapValue}, &p)
+		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
+		assert.Equalf(t, tt.structValue, p.Alive, "%d. %#v", i, tt.mapValue)
+	}
+}
