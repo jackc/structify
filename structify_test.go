@@ -84,3 +84,26 @@ func TestMapInt32Field(t *testing.T) {
 		assert.Equalf(t, int32(30), p.Age, "%d. %#v", i, tt.mapValue)
 	}
 }
+
+func TestMapFloat64Field(t *testing.T) {
+	type Person struct {
+		Age float64
+	}
+
+	for i, tt := range []struct {
+		mapValue    any
+		structValue float64
+	}{
+		{mapValue: float32(30.5), structValue: 30.5},
+		{mapValue: float64(30.5), structValue: 30.5},
+		{mapValue: int32(30), structValue: 30},
+		{mapValue: int64(30), structValue: 30},
+		{mapValue: int(30), structValue: 30},
+		{mapValue: "30.5", structValue: 30.5},
+	} {
+		var p Person
+		err := structify.Map(map[string]any{"Age": tt.mapValue}, &p)
+		assert.NoErrorf(t, err, "%d. %#v", i, tt.mapValue)
+		assert.Equalf(t, tt.structValue, p.Age, "%d. %#v", i, tt.mapValue)
+	}
+}

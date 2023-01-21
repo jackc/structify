@@ -99,6 +99,13 @@ func setString(dst reflect.Value, src string) error {
 		}
 		dst.SetInt(n)
 
+	case reflect.Float32, reflect.Float64:
+		n, err := strconv.ParseFloat(src, 64)
+		if err != nil {
+			return fmt.Errorf("cannot assign %v to %v", src, dst.Type())
+		}
+		dst.SetFloat(n)
+
 	case reflect.String:
 		dst.SetString(src)
 	default:
