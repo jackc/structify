@@ -237,3 +237,34 @@ func TestParserParseFloat(t *testing.T) {
 		assert.EqualValues(t, 4, n)
 	}
 }
+
+func TestParserParseSlice(t *testing.T) {
+	parser := &structify.Parser{}
+
+	{
+		src := []any{"foo", "bar", "baz"}
+		var dst []string
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, len(src), len(dst))
+		for i := 0; i < len(src) && i < len(dst); i++ {
+			assert.Equalf(t, src[i], dst[i], "%d", i)
+		}
+	}
+
+	{
+		src := []int32{1, 2, 3}
+		var dst []string
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"1", "2", "3"}, dst)
+	}
+
+	{
+		src := []any{1.1, 2.2, 3.3}
+		var dst []float64
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, []float64{1.1, 2.2, 3.3}, dst)
+	}
+}

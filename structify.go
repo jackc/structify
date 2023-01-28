@@ -66,6 +66,11 @@ func (p *Parser) Parse(src, dst any) error {
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
+	case reflect.Slice:
+		err := p.setAnySlice(src, dstElemVal)
+		if err != nil {
+			return fmt.Errorf("structify.Parse: %v", err)
+		}
 
 	default:
 		return fmt.Errorf("cannot assign %T to %v", src, dstVal.Type())
@@ -109,6 +114,18 @@ func normalizeSource(src any) (any, error) {
 			newMap[k] = v
 		}
 		return newMap, nil
+
+	case []any:
+		return src, nil
+	}
+
+	srcVal := reflect.ValueOf(src)
+	if srcVal.Kind() == reflect.Slice {
+		newSlice := make([]any, srcVal.Len())
+		for i := 0; i < srcVal.Len(); i++ {
+			newSlice[i] = srcVal.Index(i).Interface()
+		}
+		return newSlice, nil
 	}
 
 	return nil, fmt.Errorf("unsupported source type: %T", src)
@@ -259,6 +276,24 @@ func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
 		err := p.Parse(mapValue, dstVal.Field(i).Addr().Interface())
 		if err != nil {
 			return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) setAnySlice(src any, dstVal reflect.Value) error {
+	srcVal := reflect.ValueOf(src)
+	if srcVal.Kind() != reflect.Slice {
+		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+	}
+
+	dstVal.Set(reflect.MakeSlice(dstVal.Type(), srcVal.Len(), srcVal.Cap()))
+
+	for i := 0; i < srcVal.Len(); i++ {
+		err := p.Parse(srcVal.Index(i).Interface(), dstVal.Index(i).Addr().Interface())
+		if err != nil {
+			return fmt.Errorf("cannot assign [%d]: %v", i, err)
 		}
 	}
 
