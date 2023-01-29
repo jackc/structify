@@ -170,6 +170,21 @@ func TestParserMapBoolField(t *testing.T) {
 	}
 }
 
+func TestParserMapAnyField(t *testing.T) {
+	parser := &structify.Parser{}
+
+	type Person struct {
+		Name  string
+		Other any
+	}
+
+	var p Person
+	err := parser.Parse(map[string]any{"Name": "John", "Other": map[string]string{"foo": "bar", "baz": "quz"}}, &p)
+	assert.NoError(t, err)
+	assert.Equal(t, "John", p.Name)
+	assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz"}, p.Other)
+}
+
 func TestParserParseString(t *testing.T) {
 	parser := &structify.Parser{}
 
@@ -266,5 +281,33 @@ func TestParserParseSlice(t *testing.T) {
 		err := parser.Parse(src, &dst)
 		assert.NoError(t, err)
 		assert.Equal(t, []float64{1.1, 2.2, 3.3}, dst)
+	}
+}
+
+func TestParserParseToAny(t *testing.T) {
+	parser := &structify.Parser{}
+
+	{
+		src := "foo"
+		var dst any
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, src, dst)
+	}
+
+	{
+		src := map[string]string{"foo": "bar", "baz": "quz"}
+		var dst any
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz"}, dst)
+	}
+
+	{
+		src := map[string]any{"foo": "bar", "baz": "quz", "n": int32(42), "slice": []int32{1, 2, 3}, "nested": []any{[]int32{4, 5, 6}}}
+		var dst any
+		err := parser.Parse(src, &dst)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz", "n": int64(42), "slice": []any{int64(1), int64(2), int64(3)}, "nested": []any{[]any{int64(4), int64(5), int64(6)}}}, dst)
 	}
 }

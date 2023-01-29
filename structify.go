@@ -30,6 +30,10 @@ func (p *Parser) Parse(src, dst any) error {
 		return fmt.Errorf("structify: %v", err)
 	}
 
+	return p.parseNormalizedSource(src, dst)
+}
+
+func (p *Parser) parseNormalizedSource(src, dst any) error {
 	dstVal := reflect.ValueOf(dst)
 	if dstVal.Kind() != reflect.Ptr {
 		return fmt.Errorf("structify.Parse: dst is not a pointer, %v", dstVal.Kind())
@@ -71,6 +75,11 @@ func (p *Parser) Parse(src, dst any) error {
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
+	case reflect.Interface:
+		err := p.setAnyInterface(src, dstElemVal)
+		if err != nil {
+			return fmt.Errorf("structify.Parse: %v", err)
+		}
 
 	default:
 		return fmt.Errorf("cannot assign %T to %v", src, dstVal.Type())
@@ -106,7 +115,15 @@ func normalizeSource(src any) (any, error) {
 		return src, nil
 
 	case map[string]any:
-		return src, nil
+		normSrc := make(map[string]any, len(src))
+		for k, v := range src {
+			normV, err := normalizeSource(v)
+			if err != nil {
+				return nil, err
+			}
+			normSrc[k] = normV
+		}
+		return normSrc, nil
 
 	case map[string]string:
 		newMap := make(map[string]any, len(src))
@@ -116,14 +133,26 @@ func normalizeSource(src any) (any, error) {
 		return newMap, nil
 
 	case []any:
-		return src, nil
+		normSrc := make([]any, len(src))
+		for i := range src {
+			normV, err := normalizeSource(src[i])
+			if err != nil {
+				return nil, err
+			}
+			normSrc[i] = normV
+		}
+		return normSrc, nil
 	}
 
 	srcVal := reflect.ValueOf(src)
 	if srcVal.Kind() == reflect.Slice {
 		newSlice := make([]any, srcVal.Len())
 		for i := 0; i < srcVal.Len(); i++ {
-			newSlice[i] = srcVal.Index(i).Interface()
+			normSrcVal, err := normalizeSource(srcVal.Index(i).Interface())
+			if err != nil {
+				return nil, err
+			}
+			newSlice[i] = normSrcVal
 		}
 		return newSlice, nil
 	}
@@ -273,7 +302,7 @@ func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
 			return fmt.Errorf("missing value for %s", structField.Name)
 		}
 
-		err := p.Parse(mapValue, dstVal.Field(i).Addr().Interface())
+		err := p.parseNormalizedSource(mapValue, dstVal.Field(i).Addr().Interface())
 		if err != nil {
 			return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
 		}
@@ -291,11 +320,23 @@ func (p *Parser) setAnySlice(src any, dstVal reflect.Value) error {
 	dstVal.Set(reflect.MakeSlice(dstVal.Type(), srcVal.Len(), srcVal.Cap()))
 
 	for i := 0; i < srcVal.Len(); i++ {
-		err := p.Parse(srcVal.Index(i).Interface(), dstVal.Index(i).Addr().Interface())
+		err := p.parseNormalizedSource(srcVal.Index(i).Interface(), dstVal.Index(i).Addr().Interface())
 		if err != nil {
 			return fmt.Errorf("cannot assign [%d]: %v", i, err)
 		}
 	}
+
+	return nil
+}
+
+func (p *Parser) setAnyInterface(src any, dstVal reflect.Value) error {
+	srcVal := reflect.ValueOf(src)
+
+	if !srcVal.CanConvert(dstVal.Type()) {
+		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+	}
+
+	dstVal.Set(srcVal.Convert(dstVal.Type()))
 
 	return nil
 }
