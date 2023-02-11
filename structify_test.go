@@ -346,7 +346,7 @@ func TestParserParseSlice(t *testing.T) {
 		src := []any{"foo", "bar", "baz"}
 		var dst []string
 		err := parser.Parse(src, &dst)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, len(src), len(dst))
 		for i := 0; i < len(src) && i < len(dst); i++ {
 			assert.Equalf(t, src[i], dst[i], "%d", i)
@@ -357,7 +357,7 @@ func TestParserParseSlice(t *testing.T) {
 		src := []int32{1, 2, 3}
 		var dst []string
 		err := parser.Parse(src, &dst)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []string{"1", "2", "3"}, dst)
 	}
 
@@ -365,8 +365,18 @@ func TestParserParseSlice(t *testing.T) {
 		src := []any{1.1, 2.2, 3.3}
 		var dst []float64
 		err := parser.Parse(src, &dst)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []float64{1.1, 2.2, 3.3}, dst)
+	}
+
+	{
+		src := []any{1.1, 2.2, 3.3}
+		var dst []*float64
+		err := parser.Parse(src, &dst)
+		require.NoError(t, err)
+		for i := 0; i < len(src); i++ {
+			assert.Equalf(t, src[i], *dst[i], "%d", i)
+		}
 	}
 }
 
