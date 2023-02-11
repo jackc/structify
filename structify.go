@@ -80,6 +80,12 @@ func (p *Parser) parseNormalizedSource(src, dst any) error {
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
+	case reflect.Pointer:
+		dstElemVal.Set(reflect.New(dstElemVal.Type().Elem()))
+		err := p.parseNormalizedSource(src, dstElemVal.Interface())
+		if err != nil {
+			return fmt.Errorf("structify.Parse: %v", err)
+		}
 
 	default:
 		return fmt.Errorf("cannot assign %T to %v", src, dstVal.Type())

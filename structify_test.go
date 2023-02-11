@@ -140,6 +140,51 @@ func TestParserParseArrayOfStruct(t *testing.T) {
 	}
 }
 
+func TestParserParseArrayOfPointerToStruct(t *testing.T) {
+	parser := &structify.Parser{}
+
+	type Player struct {
+		Name   string
+		Number int32
+	}
+
+	type Team struct {
+		Name    string
+		Players []*Player
+	}
+
+	for i, tt := range []struct {
+		m map[string]any
+		t Team
+	}{
+		{
+			m: map[string]any{
+				"name": "Bulls",
+				"players": []any{
+					map[string]any{"name": "Michael", "number": 23},
+					map[string]any{"name": "Scotty", "number": 33},
+				},
+			},
+			t: Team{
+				Name: "Bulls",
+				Players: []*Player{
+					{Name: "Michael", Number: 23},
+					{Name: "Scotty", Number: 33},
+				},
+			},
+		},
+	} {
+		var team Team
+		err := parser.Parse(tt.m, &team)
+		require.NoErrorf(t, err, "%d. %v", i, tt.m)
+		assert.Equalf(t, tt.t.Name, team.Name, "%d. %v", i, tt.m)
+		assert.Equalf(t, len(tt.t.Players), len(team.Players), "%d. %v", i, tt.m)
+		for j := 0; j < len(tt.t.Players); j++ {
+			assert.Equalf(t, tt.t.Players[j], team.Players[j], "%d. %d. %v", i, j, tt.m)
+		}
+	}
+}
+
 func TestParserMapInt32Field(t *testing.T) {
 	parser := &structify.Parser{}
 
