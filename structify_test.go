@@ -378,6 +378,19 @@ func TestParserParseSlice(t *testing.T) {
 			assert.Equalf(t, src[i], *dst[i], "%d", i)
 		}
 	}
+
+	{
+		src := []any{1.1, nil, 2.2, nil, 3.3}
+		var dst []*float64
+		err := parser.Parse(src, &dst)
+		require.NoError(t, err)
+		for i := 0; i < len(src); i++ {
+			require.Equalf(t, src[i] == nil, dst[i] == nil, "%d", i)
+			if src[i] != nil {
+				assert.Equalf(t, src[i], *dst[i], "%d", i)
+			}
+		}
+	}
 }
 
 func TestParserParseToAny(t *testing.T) {

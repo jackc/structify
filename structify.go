@@ -81,10 +81,14 @@ func (p *Parser) parseNormalizedSource(src, dst any) error {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Pointer:
-		dstElemVal.Set(reflect.New(dstElemVal.Type().Elem()))
-		err := p.parseNormalizedSource(src, dstElemVal.Interface())
-		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+		if src == nil {
+			dstElemVal.Set(reflect.Zero(dstElemVal.Type()))
+		} else {
+			dstElemVal.Set(reflect.New(dstElemVal.Type().Elem()))
+			err := p.parseNormalizedSource(src, dstElemVal.Interface())
+			if err != nil {
+				return fmt.Errorf("structify.Parse: %v", err)
+			}
 		}
 
 	default:
@@ -161,6 +165,11 @@ func normalizeSource(src any) (any, error) {
 			newSlice[i] = normSrcVal
 		}
 		return newSlice, nil
+	}
+
+	// Normalize typed nils into untyped nils
+	if src == nil || srcVal.IsNil() {
+		return nil, nil
 	}
 
 	return nil, fmt.Errorf("unsupported source type: %T", src)
