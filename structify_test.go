@@ -99,6 +99,47 @@ func TestParserParseNestedStruct(t *testing.T) {
 	}
 }
 
+func TestParserParseArrayOfStruct(t *testing.T) {
+	parser := &structify.Parser{}
+
+	type Player struct {
+		Name   string
+		Number int32
+	}
+
+	type Team struct {
+		Name    string
+		Players []Player
+	}
+
+	for i, tt := range []struct {
+		m map[string]any
+		t Team
+	}{
+		{
+			m: map[string]any{
+				"name": "Bulls",
+				"players": []any{
+					map[string]any{"name": "Michael", "number": 23},
+					map[string]any{"name": "Scotty", "number": 33},
+				},
+			},
+			t: Team{
+				Name: "Bulls",
+				Players: []Player{
+					{Name: "Michael", Number: 23},
+					{Name: "Scotty", Number: 33},
+				},
+			},
+		},
+	} {
+		var team Team
+		err := parser.Parse(tt.m, &team)
+		require.NoErrorf(t, err, "%d. %v", i, tt.m)
+		assert.Equalf(t, tt.t, team, "%d. %v", i, tt.m)
+	}
+}
+
 func TestParserMapInt32Field(t *testing.T) {
 	parser := &structify.Parser{}
 
