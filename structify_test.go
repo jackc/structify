@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParserParseStructFieldWithoutTagNameVariants(t *testing.T) {
+func TestParserParsesIntoStruct_FieldWithoutTagNameVariants(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -30,7 +30,7 @@ func TestParserParseStructFieldWithoutTagNameVariants(t *testing.T) {
 	}
 }
 
-func TestParserParseStructFieldWithTag(t *testing.T) {
+func TestParserParsesIntoStruct_FieldWithTag(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -43,7 +43,7 @@ func TestParserParseStructFieldWithTag(t *testing.T) {
 	assert.Equal(t, "Jack", p.FirstName)
 }
 
-func TestParserParseStructMissingRequiredField(t *testing.T) {
+func TestParserParsesIntoStruct_MissingRequiredField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -56,7 +56,7 @@ func TestParserParseStructMissingRequiredField(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestParserParseStructSkippedField(t *testing.T) {
+func TestParserParsesIntoStruct_SkippedField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -70,7 +70,7 @@ func TestParserParseStructSkippedField(t *testing.T) {
 	assert.Equal(t, "Jack", p.FirstName)
 }
 
-func TestParserParseNestedStruct(t *testing.T) {
+func TestParserParsesIntoStruct_NestedStructField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Name struct {
@@ -99,7 +99,7 @@ func TestParserParseNestedStruct(t *testing.T) {
 	}
 }
 
-func TestParserParseArrayOfStruct(t *testing.T) {
+func TestParserParsesIntoStruct_ArrayOfStructField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Player struct {
@@ -140,7 +140,7 @@ func TestParserParseArrayOfStruct(t *testing.T) {
 	}
 }
 
-func TestParserParseArrayOfPointerToStruct(t *testing.T) {
+func TestParserParsesIntoStruct_ArrayOfPointerToStructField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Player struct {
@@ -185,7 +185,7 @@ func TestParserParseArrayOfPointerToStruct(t *testing.T) {
 	}
 }
 
-func TestParserMapInt32Field(t *testing.T) {
+func TestParserParsesIntoStruct_Int32Field(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -210,7 +210,7 @@ func TestParserMapInt32Field(t *testing.T) {
 	}
 }
 
-func TestParserMapFloat64Field(t *testing.T) {
+func TestParserParsesIntoStruct_Float64Field(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -235,7 +235,7 @@ func TestParserMapFloat64Field(t *testing.T) {
 	}
 }
 
-func TestParserMapBoolField(t *testing.T) {
+func TestParserParsesIntoStruct_BoolField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -256,7 +256,7 @@ func TestParserMapBoolField(t *testing.T) {
 	}
 }
 
-func TestParserMapAnyField(t *testing.T) {
+func TestParserParsesIntoStruct_AnyField(t *testing.T) {
 	parser := &structify.Parser{}
 
 	type Person struct {
@@ -271,7 +271,7 @@ func TestParserMapAnyField(t *testing.T) {
 	assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz"}, p.Other)
 }
 
-func TestParserParseString(t *testing.T) {
+func TestParserParsesIntoString(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
@@ -296,7 +296,7 @@ func TestParserParseString(t *testing.T) {
 	}
 }
 
-func TestParserParseInteger(t *testing.T) {
+func TestParserParsesIntoInteger(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
@@ -319,9 +319,16 @@ func TestParserParseInteger(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, 4, n)
 	}
+
+	{
+		var n int16
+		err := parser.Parse(float32(4), &n)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 4, n)
+	}
 }
 
-func TestParserParseFloat(t *testing.T) {
+func TestParserParsesIntoFloat(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
@@ -332,14 +339,14 @@ func TestParserParseFloat(t *testing.T) {
 	}
 
 	{
-		var n float64
+		var n float32
 		err := parser.Parse("4", &n)
 		assert.NoError(t, err)
 		assert.EqualValues(t, 4, n)
 	}
 }
 
-func TestParserParseSlice(t *testing.T) {
+func TestParserParsesIntoSlice(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
@@ -393,7 +400,7 @@ func TestParserParseSlice(t *testing.T) {
 	}
 }
 
-func TestParserParseToAny(t *testing.T) {
+func TestParserParsesIntoAny(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
