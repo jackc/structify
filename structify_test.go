@@ -60,6 +60,20 @@ func TestParserParsesIntoStruct_MissingRequiredField(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParserParsesIntoStruct_MissingOptionalField(t *testing.T) {
+	parser := &structify.Parser{}
+
+	type Person struct {
+		FirstName string
+		LastName  structify.Optional[string]
+	}
+
+	var p Person
+	err := parser.Parse(map[string]any{"firstName": "Jack"}, &p)
+	require.NoError(t, err)
+	require.Equal(t, structify.Optional[string]{}, p.LastName)
+}
+
 func TestParserParsesIntoStruct_SkippedField(t *testing.T) {
 	parser := &structify.Parser{}
 

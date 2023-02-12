@@ -28,6 +28,11 @@ type Scanner interface {
 	Scan(value any) error
 }
 
+// MissingFieldScanner allows a field to be missing from the source data.
+type MissingFieldScanner interface {
+	ScanMissingField()
+}
+
 func Parse(m map[string]any, dest any) error {
 	return DefaultParser.Parse(m, dest)
 }
@@ -355,22 +360,24 @@ func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
 			mapKey = tag
 		} else {
 			normalizedName := normalizeFieldName(structField.Name)
-			var found bool
-			mapKey, found = normalizedNameToMapKey[normalizedName]
-			if !found {
+			mapKey = normalizedNameToMapKey[normalizedName]
+		}
+
+		mapValue, found := srcMap[mapKey]
+		if found {
+			err := p.parseNormalizedSource(mapValue, dstVal.Field(i).Addr().Interface())
+			if err != nil {
+				return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
+			}
+		} else {
+			field := dstVal.Field(i).Addr().Interface()
+			if mfc, ok := field.(MissingFieldScanner); ok {
+				mfc.ScanMissingField()
+			} else {
 				return fmt.Errorf("missing value for %s", structField.Name)
 			}
 		}
 
-		mapValue, ok := srcMap[mapKey]
-		if !ok {
-			return fmt.Errorf("missing value for %s", structField.Name)
-		}
-
-		err := p.parseNormalizedSource(mapValue, dstVal.Field(i).Addr().Interface())
-		if err != nil {
-			return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
-		}
 	}
 
 	return nil
@@ -417,4 +424,14 @@ func normalizeFieldName(s string) string {
 			return -1
 		}
 	}, s)
+}
+
+// Optional wraps any type and allows it to be missing from the source data.
+type Optional[T any] struct {
+	Value   T
+	Present bool
+}
+
+func (opt *Optional[T]) ScanMissingField() {
+	*opt = Optional[T]{}
 }
