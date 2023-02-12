@@ -33,6 +33,18 @@ func Parse(m map[string]any, dest any) error {
 }
 
 type Parser struct {
+	typeScannerFuncs map[reflect.Type]TypeScannerFunc
+}
+
+type TypeScannerFunc func(parser *Parser, src, dst any) error
+
+// RegisterTypeScanner configures parser to call fn for any scan destination with the same type as value.
+func (p *Parser) RegisterTypeScanner(value any, fn TypeScannerFunc) {
+	if p.typeScannerFuncs == nil {
+		p.typeScannerFuncs = make(map[reflect.Type]TypeScannerFunc)
+	}
+
+	p.typeScannerFuncs[reflect.TypeOf(value)] = fn
 }
 
 // Parse
@@ -46,6 +58,17 @@ func (p *Parser) Parse(src, dst any) error {
 }
 
 func (p *Parser) parseNormalizedSource(src, dst any) error {
+	if p.typeScannerFuncs != nil {
+		dstType := reflect.TypeOf(dst)
+		if fn, ok := p.typeScannerFuncs[dstType]; ok {
+			err := fn(p, src, dst)
+			if err != nil {
+				return fmt.Errorf("structify: %v", err)
+			}
+			return nil
+		}
+	}
+
 	switch dst := dst.(type) {
 	case StructifyScanner:
 		err := dst.StructifyScan(p, src)

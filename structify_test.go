@@ -3,7 +3,9 @@ package structify_test
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/jackc/structify"
 	"github.com/stretchr/testify/assert"
@@ -496,4 +498,33 @@ func TestParserParsesIntoScanner(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, sql.NullInt64{Int64: 42, Valid: true}, ni64)
 	}
+}
+
+func TestParserParsesUsesRegisteredTypeScannerForNewType(t *testing.T) {
+	parser := &structify.Parser{}
+	parser.RegisterTypeScanner(new(time.Time), func(parser *structify.Parser, src, dst any) error {
+		seconds, err := strconv.ParseInt(fmt.Sprint(src), 10, 64)
+		if err != nil {
+			return err
+		}
+
+		*(dst.(*time.Time)) = time.Unix(seconds, 0)
+		return nil
+	})
+	var tm time.Time
+	err := parser.Parse("1676164903", &tm)
+	assert.NoError(t, err)
+	assert.True(t, tm.Equal(time.Unix(1676164903, 0)))
+}
+
+func TestParserParsesUsesRegisteredTypeScannerToOverrideType(t *testing.T) {
+	parser := &structify.Parser{}
+	parser.RegisterTypeScanner(new(string), func(parser *structify.Parser, src, dst any) error {
+		*(dst.(*string)) = "overridden"
+		return nil
+	})
+	var s string
+	err := parser.Parse("foobar", &s)
+	assert.NoError(t, err)
+	assert.Equal(t, "overridden", s)
 }
