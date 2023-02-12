@@ -48,9 +48,17 @@ func (p *Parser) Parse(src, dst any) error {
 func (p *Parser) parseNormalizedSource(src, dst any) error {
 	switch dst := dst.(type) {
 	case StructifyScanner:
-		return dst.StructifyScan(p, src)
+		err := dst.StructifyScan(p, src)
+		if err != nil {
+			return fmt.Errorf("structify: %v", err)
+		}
+		return nil
 	case Scanner:
-		return dst.Scan(src)
+		err := dst.Scan(src)
+		if err != nil {
+			return fmt.Errorf("structify: %v", err)
+		}
+		return nil
 	}
 
 	dstVal := reflect.ValueOf(dst)
