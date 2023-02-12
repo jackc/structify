@@ -1,6 +1,7 @@
 package structify_test
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 
@@ -436,6 +437,10 @@ func (tss *testStructifyScanner) StructifyScan(parser *structify.Parser, src any
 	return nil
 }
 
+func (tss *testStructifyScanner) Scan(value any) error {
+	return fmt.Errorf("should never be called because also implements StructifyScanner")
+}
+
 func TestParserParsesIntoStructifyScanner(t *testing.T) {
 	parser := &structify.Parser{}
 
@@ -451,5 +456,44 @@ func TestParserParsesIntoStructifyScanner(t *testing.T) {
 		err := parser.Parse(42, &tss)
 		assert.NoError(t, err)
 		assert.EqualValues(t, "42 42", string(tss))
+	}
+}
+
+type testScanner string
+
+func (ts *testScanner) Scan(value any) error {
+	*(*string)(ts) = fmt.Sprintf("%v %v", value, value)
+	return nil
+}
+
+func TestParserParsesIntoScanner(t *testing.T) {
+	parser := &structify.Parser{}
+
+	{
+		var ts testScanner
+		err := parser.Parse("4", &ts)
+		assert.NoError(t, err)
+		assert.EqualValues(t, "4 4", string(ts))
+	}
+
+	{
+		var ts testScanner
+		err := parser.Parse(42, &ts)
+		assert.NoError(t, err)
+		assert.EqualValues(t, "42 42", string(ts))
+	}
+
+	{
+		var ns sql.NullString
+		err := parser.Parse(nil, &ns)
+		assert.NoError(t, err)
+		assert.EqualValues(t, sql.NullString{}, ns)
+	}
+
+	{
+		var ni64 sql.NullInt64
+		err := parser.Parse(42, &ni64)
+		assert.NoError(t, err)
+		assert.EqualValues(t, sql.NullInt64{Int64: 42, Valid: true}, ni64)
 	}
 }

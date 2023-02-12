@@ -21,6 +21,13 @@ type StructifyScanner interface {
 	StructifyScan(parser *Parser, src any) error
 }
 
+// Scanner matches the database/sql.Scanner interface. It allows many database/sql types to be used without needing to
+// implement any structify interfaces. If a type does need to implement custom scanning logic for structify prefer the
+// StructifyScanner interface.
+type Scanner interface {
+	Scan(value any) error
+}
+
 func Parse(m map[string]any, dest any) error {
 	return DefaultParser.Parse(m, dest)
 }
@@ -42,6 +49,8 @@ func (p *Parser) parseNormalizedSource(src, dst any) error {
 	switch dst := dst.(type) {
 	case StructifyScanner:
 		return dst.StructifyScan(p, src)
+	case Scanner:
+		return dst.Scan(src)
 	}
 
 	dstVal := reflect.ValueOf(dst)
