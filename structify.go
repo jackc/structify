@@ -16,6 +16,11 @@ func init() {
 	DefaultParser = &Parser{}
 }
 
+// StructifyScanner allows a type to control how it is parsed.
+type StructifyScanner interface {
+	StructifyScan(parser *Parser, src any) error
+}
+
 func Parse(m map[string]any, dest any) error {
 	return DefaultParser.Parse(m, dest)
 }
@@ -34,6 +39,11 @@ func (p *Parser) Parse(src, dst any) error {
 }
 
 func (p *Parser) parseNormalizedSource(src, dst any) error {
+	switch dst := dst.(type) {
+	case StructifyScanner:
+		return dst.StructifyScan(p, src)
+	}
+
 	dstVal := reflect.ValueOf(dst)
 	if dstVal.Kind() != reflect.Ptr {
 		return fmt.Errorf("structify.Parse: dst is not a pointer, %v", dstVal.Kind())

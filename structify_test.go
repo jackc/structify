@@ -1,6 +1,7 @@
 package structify_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/jackc/structify"
@@ -425,5 +426,30 @@ func TestParserParsesIntoAny(t *testing.T) {
 		err := parser.Parse(src, &dst)
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz", "n": int64(42), "slice": []any{int64(1), int64(2), int64(3)}, "nested": []any{[]any{int64(4), int64(5), int64(6)}}}, dst)
+	}
+}
+
+type testStructifyScanner string
+
+func (tss *testStructifyScanner) StructifyScan(parser *structify.Parser, src any) error {
+	*(*string)(tss) = fmt.Sprintf("%v %v", src, src)
+	return nil
+}
+
+func TestParserParsesIntoStructifyScanner(t *testing.T) {
+	parser := &structify.Parser{}
+
+	{
+		var tss testStructifyScanner
+		err := parser.Parse("4", &tss)
+		assert.NoError(t, err)
+		assert.EqualValues(t, "4 4", string(tss))
+	}
+
+	{
+		var tss testStructifyScanner
+		err := parser.Parse(42, &tss)
+		assert.NoError(t, err)
+		assert.EqualValues(t, "42 42", string(tss))
 	}
 }
