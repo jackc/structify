@@ -1,6 +1,7 @@
 package structify
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -15,6 +16,110 @@ var DefaultParser *Parser
 func init() {
 	DefaultParser = &Parser{}
 }
+
+type StructAssignmentError struct {
+	fieldErrors []*FieldError
+}
+
+func (e *StructAssignmentError) FieldErrors() []*FieldError {
+	return e.fieldErrors
+}
+
+func (e *StructAssignmentError) FieldNameErrorMap() map[string]error {
+	m := make(map[string]error, len(e.fieldErrors))
+	for _, fieldErr := range e.fieldErrors {
+		m[fieldErr.FieldName] = fieldErr.Err
+	}
+	return m
+}
+
+func (e *StructAssignmentError) Error() string {
+	sb := &strings.Builder{}
+	for i, fieldErr := range e.fieldErrors {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fieldErr.Error())
+	}
+
+	return sb.String()
+}
+
+type FieldError struct {
+	FieldName string
+	Err       error
+}
+
+func (e *FieldError) Error() string {
+	return fmt.Sprintf("%s: %v", e.FieldName, e.Err)
+}
+
+func (e *FieldError) Unwrap() error {
+	return e.Err
+}
+
+type SliceAssignmentError struct {
+	elementErrors []*ElementError
+}
+
+func (e *SliceAssignmentError) ElementErrors() []*ElementError {
+	return e.elementErrors
+}
+
+func (e *SliceAssignmentError) IndexErrorMap() map[int]error {
+	m := make(map[int]error, len(e.elementErrors))
+	for _, elErr := range e.elementErrors {
+		m[elErr.Index] = elErr.Err
+	}
+	return m
+}
+
+func (e *SliceAssignmentError) Error() string {
+	sb := &strings.Builder{}
+	for i, elErr := range e.elementErrors {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(elErr.Error())
+	}
+
+	return sb.String()
+}
+
+type ElementError struct {
+	Index int
+	Err   error
+}
+
+func (e *ElementError) Error() string {
+	return fmt.Sprintf("%d: %v", e.Index, e.Err)
+}
+
+func (e *ElementError) Unwrap() error {
+	return e.Err
+}
+
+type AssignmentError struct {
+	Source     any
+	TargetType reflect.Type
+	Err        error
+}
+
+func (e *AssignmentError) Error() string {
+	return fmt.Sprintf("cannot assign %s to %v: %v", e.Source, e.TargetType, e.Err)
+}
+
+func (e *AssignmentError) Unwrap() error {
+	return e.Err
+}
+
+var (
+	ErrCannotConvertToFloat      = errors.New("cannot convert to float")
+	ErrCannotConvertToInteger    = errors.New("cannot convert to integer")
+	ErrMissing                   = errors.New("missing value")
+	ErrOutOfRange                = errors.New("out of range")
+	ErrUnsupportedTypeConversion = errors.New("unsupported type conversion")
+)
 
 // StructifyScanner allows a type to control how it is parsed.
 type StructifyScanner interface {
@@ -103,37 +208,37 @@ func (p *Parser) parseNormalizedSource(source, target any) error {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		err := p.setAnyInt(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Float32, reflect.Float64:
 		err := p.setAnyFloat(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.String:
 		err := p.setAnyString(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Bool:
 		err := p.setAnyBool(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Struct:
 		err := p.setAnyStruct(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Slice:
 		err := p.setAnySlice(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Interface:
 		err := p.setAnyInterface(source, targetElemVal)
 		if err != nil {
-			return fmt.Errorf("structify.Parse: %v", err)
+			return err
 		}
 	case reflect.Pointer:
 		if source == nil {
@@ -142,12 +247,12 @@ func (p *Parser) parseNormalizedSource(source, target any) error {
 			targetElemVal.Set(reflect.New(targetElemVal.Type().Elem()))
 			err := p.parseNormalizedSource(source, targetElemVal.Interface())
 			if err != nil {
-				return fmt.Errorf("structify.Parse: %v", err)
+				return err
 			}
 		}
 
 	default:
-		return fmt.Errorf("cannot assign %T to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 
 	return nil
@@ -230,34 +335,6 @@ func normalizeSource(source any) (any, error) {
 	return nil, fmt.Errorf("unsupported source type: %T", source)
 }
 
-func (p *Parser) parseString(source string, targetVal reflect.Value) error {
-	switch targetVal.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n, err := strconv.ParseInt(source, 10, 64)
-		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
-		}
-		if targetVal.OverflowInt(n) {
-			return fmt.Errorf("%v overflows %v", n, targetVal.Type())
-		}
-		targetVal.SetInt(n)
-
-	case reflect.Float32, reflect.Float64:
-		n, err := strconv.ParseFloat(source, 64)
-		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
-		}
-		targetVal.SetFloat(n)
-
-	case reflect.String:
-		targetVal.SetString(source)
-	default:
-		return fmt.Errorf("cannot assign %T to %v", source, targetVal.Type())
-	}
-
-	return nil
-}
-
 func (p *Parser) setAnyInt(source any, targetVal reflect.Value) error {
 	var n int64
 	switch source := source.(type) {
@@ -266,19 +343,19 @@ func (p *Parser) setAnyInt(source any, targetVal reflect.Value) error {
 	case float64:
 		n = int64(source)
 		if source != float64(n) {
-			return fmt.Errorf("%v is not an integer", source)
+			return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrCannotConvertToInteger}
 		}
 	case string:
 		var err error
 		n, err = strconv.ParseInt(source, 10, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+			return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: strconvParseIntErrorToOurError(err)}
 		}
 	default:
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 	if targetVal.OverflowInt(n) {
-		return fmt.Errorf("%v overflows %v", n, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrOutOfRange}
 	}
 	targetVal.SetInt(n)
 
@@ -296,10 +373,10 @@ func (p *Parser) setAnyFloat(source any, targetVal reflect.Value) error {
 		var err error
 		n, err = strconv.ParseFloat(source, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+			return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: strconvParseFloatErrorToOurError(err)}
 		}
 	default:
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 	targetVal.SetFloat(n)
 
@@ -316,7 +393,7 @@ func (p *Parser) setAnyString(source any, targetVal reflect.Value) error {
 	case float64:
 		s = strconv.FormatFloat(source, 'f', -1, 64)
 	default:
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 	targetVal.SetString(s)
 
@@ -329,7 +406,7 @@ func (p *Parser) setAnyBool(source any, targetVal reflect.Value) error {
 	case bool:
 		b = source
 	default:
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 	targetVal.SetBool(b)
 
@@ -340,7 +417,7 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 	var sourceMap map[string]any
 	var ok bool
 	if sourceMap, ok = source.(map[string]any); !ok {
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 
 	normalizedNameToMapKey := make(map[string]string, len(sourceMap))
@@ -349,16 +426,20 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 	}
 
 	targetElemType := targetVal.Type()
+	var fieldErrors []*FieldError
 
 	for i := 0; i < targetElemType.NumField(); i++ {
 		structField := targetElemType.Field(i)
+		var fieldName string
 		var mapKey string
 		if tag, ok := structField.Tag.Lookup(structTagKey); ok {
 			if tag == "-" {
 				continue // Skip ignored fields
 			}
+			fieldName = tag
 			mapKey = tag
 		} else {
+			fieldName = structField.Name
 			normalizedName := normalizeFieldName(structField.Name)
 			mapKey = normalizedNameToMapKey[normalizedName]
 		}
@@ -367,17 +448,20 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 		if found {
 			err := p.parseNormalizedSource(mapValue, targetVal.Field(i).Addr().Interface())
 			if err != nil {
-				return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
+				fieldErrors = append(fieldErrors, &FieldError{FieldName: fieldName, Err: err})
 			}
 		} else {
 			field := targetVal.Field(i).Addr().Interface()
 			if mfc, ok := field.(MissingFieldScanner); ok {
 				mfc.ScanMissingField()
 			} else {
-				return fmt.Errorf("missing value for %s", structField.Name)
+				fieldErrors = append(fieldErrors, &FieldError{FieldName: fieldName, Err: ErrMissing})
 			}
 		}
+	}
 
+	if len(fieldErrors) > 0 {
+		return &StructAssignmentError{fieldErrors: fieldErrors}
 	}
 
 	return nil
@@ -386,16 +470,21 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 func (p *Parser) setAnySlice(source any, targetVal reflect.Value) error {
 	sourceVal := reflect.ValueOf(source)
 	if sourceVal.Kind() != reflect.Slice {
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 
 	targetVal.Set(reflect.MakeSlice(targetVal.Type(), sourceVal.Len(), sourceVal.Cap()))
 
+	var elementErrors []*ElementError
 	for i := 0; i < sourceVal.Len(); i++ {
 		err := p.parseNormalizedSource(sourceVal.Index(i).Interface(), targetVal.Index(i).Addr().Interface())
 		if err != nil {
-			return fmt.Errorf("cannot assign [%d]: %v", i, err)
+			elementErrors = append(elementErrors, &ElementError{Index: i, Err: err})
 		}
+	}
+
+	if len(elementErrors) > 0 {
+		return &SliceAssignmentError{elementErrors: elementErrors}
 	}
 
 	return nil
@@ -405,7 +494,7 @@ func (p *Parser) setAnyInterface(source any, targetVal reflect.Value) error {
 	sourceVal := reflect.ValueOf(source)
 
 	if !sourceVal.CanConvert(targetVal.Type()) {
-		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
+		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}
 
 	targetVal.Set(sourceVal.Convert(targetVal.Type()))
@@ -424,6 +513,34 @@ func normalizeFieldName(s string) string {
 			return -1
 		}
 	}, s)
+}
+
+func strconvParseIntErrorToOurError(err error) error {
+	if numError, ok := err.(*strconv.NumError); ok {
+		switch numError.Err {
+		case strconv.ErrSyntax:
+			return ErrCannotConvertToInteger
+		case strconv.ErrRange:
+			return ErrOutOfRange
+		}
+	}
+
+	// This should never be reached.
+	return err
+}
+
+func strconvParseFloatErrorToOurError(err error) error {
+	if numError, ok := err.(*strconv.NumError); ok {
+		switch numError.Err {
+		case strconv.ErrSyntax:
+			return ErrCannotConvertToFloat
+		case strconv.ErrRange:
+			return ErrOutOfRange
+		}
+	}
+
+	// This should never be reached.
+	return err
 }
 
 // Optional wraps any type and allows it to be missing from the source data.
