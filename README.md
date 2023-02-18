@@ -1,4 +1,5 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/jackc/structify.svg)](https://pkg.go.dev/github.com/jackc/structify)
+![Build Status](https://github.com/jackc/structify/actions/workflows/ci.yml/badge.svg)
 
 # structify
 
