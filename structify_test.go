@@ -368,51 +368,51 @@ func TestParserParsesIntoSlice(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
-		src := []any{"foo", "bar", "baz"}
-		var dst []string
-		err := parser.Parse(src, &dst)
+		source := []any{"foo", "bar", "baz"}
+		var target []string
+		err := parser.Parse(source, &target)
 		require.NoError(t, err)
-		assert.Equal(t, len(src), len(dst))
-		for i := 0; i < len(src) && i < len(dst); i++ {
-			assert.Equalf(t, src[i], dst[i], "%d", i)
+		assert.Equal(t, len(source), len(target))
+		for i := 0; i < len(source) && i < len(target); i++ {
+			assert.Equalf(t, source[i], target[i], "%d", i)
 		}
 	}
 
 	{
-		src := []int32{1, 2, 3}
-		var dst []string
-		err := parser.Parse(src, &dst)
+		source := []int32{1, 2, 3}
+		var target []string
+		err := parser.Parse(source, &target)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"1", "2", "3"}, dst)
+		assert.Equal(t, []string{"1", "2", "3"}, target)
 	}
 
 	{
-		src := []any{1.1, 2.2, 3.3}
-		var dst []float64
-		err := parser.Parse(src, &dst)
+		source := []any{1.1, 2.2, 3.3}
+		var target []float64
+		err := parser.Parse(source, &target)
 		require.NoError(t, err)
-		assert.Equal(t, []float64{1.1, 2.2, 3.3}, dst)
+		assert.Equal(t, []float64{1.1, 2.2, 3.3}, target)
 	}
 
 	{
-		src := []any{1.1, 2.2, 3.3}
-		var dst []*float64
-		err := parser.Parse(src, &dst)
+		source := []any{1.1, 2.2, 3.3}
+		var target []*float64
+		err := parser.Parse(source, &target)
 		require.NoError(t, err)
-		for i := 0; i < len(src); i++ {
-			assert.Equalf(t, src[i], *dst[i], "%d", i)
+		for i := 0; i < len(source); i++ {
+			assert.Equalf(t, source[i], *target[i], "%d", i)
 		}
 	}
 
 	{
-		src := []any{1.1, nil, 2.2, nil, 3.3}
-		var dst []*float64
-		err := parser.Parse(src, &dst)
+		source := []any{1.1, nil, 2.2, nil, 3.3}
+		var target []*float64
+		err := parser.Parse(source, &target)
 		require.NoError(t, err)
-		for i := 0; i < len(src); i++ {
-			require.Equalf(t, src[i] == nil, dst[i] == nil, "%d", i)
-			if src[i] != nil {
-				assert.Equalf(t, src[i], *dst[i], "%d", i)
+		for i := 0; i < len(source); i++ {
+			require.Equalf(t, source[i] == nil, target[i] == nil, "%d", i)
+			if source[i] != nil {
+				assert.Equalf(t, source[i], *target[i], "%d", i)
 			}
 		}
 	}
@@ -422,34 +422,34 @@ func TestParserParsesIntoAny(t *testing.T) {
 	parser := &structify.Parser{}
 
 	{
-		src := "foo"
-		var dst any
-		err := parser.Parse(src, &dst)
+		source := "foo"
+		var target any
+		err := parser.Parse(source, &target)
 		assert.NoError(t, err)
-		assert.Equal(t, src, dst)
+		assert.Equal(t, source, target)
 	}
 
 	{
-		src := map[string]string{"foo": "bar", "baz": "quz"}
-		var dst any
-		err := parser.Parse(src, &dst)
+		source := map[string]string{"foo": "bar", "baz": "quz"}
+		var target any
+		err := parser.Parse(source, &target)
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz"}, dst)
+		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz"}, target)
 	}
 
 	{
-		src := map[string]any{"foo": "bar", "baz": "quz", "n": int32(42), "slice": []int32{1, 2, 3}, "nested": []any{[]int32{4, 5, 6}}}
-		var dst any
-		err := parser.Parse(src, &dst)
+		source := map[string]any{"foo": "bar", "baz": "quz", "n": int32(42), "slice": []int32{1, 2, 3}, "nested": []any{[]int32{4, 5, 6}}}
+		var target any
+		err := parser.Parse(source, &target)
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz", "n": int64(42), "slice": []any{int64(1), int64(2), int64(3)}, "nested": []any{[]any{int64(4), int64(5), int64(6)}}}, dst)
+		assert.Equal(t, map[string]any{"foo": "bar", "baz": "quz", "n": int64(42), "slice": []any{int64(1), int64(2), int64(3)}, "nested": []any{[]any{int64(4), int64(5), int64(6)}}}, target)
 	}
 }
 
 type testStructifyScanner string
 
-func (tss *testStructifyScanner) StructifyScan(parser *structify.Parser, src any) error {
-	*(*string)(tss) = fmt.Sprintf("%v %v", src, src)
+func (tss *testStructifyScanner) StructifyScan(parser *structify.Parser, source any) error {
+	*(*string)(tss) = fmt.Sprintf("%v %v", source, source)
 	return nil
 }
 
@@ -516,13 +516,13 @@ func TestParserParsesIntoScanner(t *testing.T) {
 
 func TestParserParsesUsesRegisteredTypeScannerForNewType(t *testing.T) {
 	parser := &structify.Parser{}
-	parser.RegisterTypeScanner(new(time.Time), func(parser *structify.Parser, src, dst any) error {
-		seconds, err := strconv.ParseInt(fmt.Sprint(src), 10, 64)
+	parser.RegisterTypeScanner(new(time.Time), func(parser *structify.Parser, source, target any) error {
+		seconds, err := strconv.ParseInt(fmt.Sprint(source), 10, 64)
 		if err != nil {
 			return err
 		}
 
-		*(dst.(*time.Time)) = time.Unix(seconds, 0)
+		*(target.(*time.Time)) = time.Unix(seconds, 0)
 		return nil
 	})
 	var tm time.Time
@@ -533,8 +533,8 @@ func TestParserParsesUsesRegisteredTypeScannerForNewType(t *testing.T) {
 
 func TestParserParsesUsesRegisteredTypeScannerToOverrideType(t *testing.T) {
 	parser := &structify.Parser{}
-	parser.RegisterTypeScanner(new(string), func(parser *structify.Parser, src, dst any) error {
-		*(dst.(*string)) = "overridden"
+	parser.RegisterTypeScanner(new(string), func(parser *structify.Parser, source, target any) error {
+		*(target.(*string)) = "overridden"
 		return nil
 	})
 	var s string

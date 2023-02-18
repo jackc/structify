@@ -18,7 +18,7 @@ func init() {
 
 // StructifyScanner allows a type to control how it is parsed.
 type StructifyScanner interface {
-	StructifyScan(parser *Parser, src any) error
+	StructifyScan(parser *Parser, source any) error
 }
 
 // Scanner matches the database/sql.Scanner interface. It allows many database/sql types to be used without needing to
@@ -33,17 +33,17 @@ type MissingFieldScanner interface {
 	ScanMissingField()
 }
 
-func Parse(m map[string]any, dest any) error {
-	return DefaultParser.Parse(m, dest)
+func Parse(m map[string]any, target any) error {
+	return DefaultParser.Parse(m, target)
 }
 
 type Parser struct {
 	typeScannerFuncs map[reflect.Type]TypeScannerFunc
 }
 
-type TypeScannerFunc func(parser *Parser, src, dst any) error
+type TypeScannerFunc func(parser *Parser, source, target any) error
 
-// RegisterTypeScanner configures parser to call fn for any scan destination with the same type as value.
+// RegisterTypeScanner configures parser to call fn for any scan target with the same type as value.
 func (p *Parser) RegisterTypeScanner(value any, fn TypeScannerFunc) {
 	if p.typeScannerFuncs == nil {
 		p.typeScannerFuncs = make(map[reflect.Type]TypeScannerFunc)
@@ -53,20 +53,20 @@ func (p *Parser) RegisterTypeScanner(value any, fn TypeScannerFunc) {
 }
 
 // Parse
-func (p *Parser) Parse(src, dst any) error {
-	src, err := normalizeSource(src)
+func (p *Parser) Parse(source, target any) error {
+	source, err := normalizeSource(source)
 	if err != nil {
 		return fmt.Errorf("structify: %v", err)
 	}
 
-	return p.parseNormalizedSource(src, dst)
+	return p.parseNormalizedSource(source, target)
 }
 
-func (p *Parser) parseNormalizedSource(src, dst any) error {
+func (p *Parser) parseNormalizedSource(source, target any) error {
 	if p.typeScannerFuncs != nil {
-		dstType := reflect.TypeOf(dst)
-		if fn, ok := p.typeScannerFuncs[dstType]; ok {
-			err := fn(p, src, dst)
+		targetType := reflect.TypeOf(target)
+		if fn, ok := p.typeScannerFuncs[targetType]; ok {
+			err := fn(p, source, target)
 			if err != nil {
 				return fmt.Errorf("structify: %v", err)
 			}
@@ -74,114 +74,114 @@ func (p *Parser) parseNormalizedSource(src, dst any) error {
 		}
 	}
 
-	switch dst := dst.(type) {
+	switch target := target.(type) {
 	case StructifyScanner:
-		err := dst.StructifyScan(p, src)
+		err := target.StructifyScan(p, source)
 		if err != nil {
 			return fmt.Errorf("structify: %v", err)
 		}
 		return nil
 	case Scanner:
-		err := dst.Scan(src)
+		err := target.Scan(source)
 		if err != nil {
 			return fmt.Errorf("structify: %v", err)
 		}
 		return nil
 	}
 
-	dstVal := reflect.ValueOf(dst)
-	if dstVal.Kind() != reflect.Ptr {
-		return fmt.Errorf("structify.Parse: dst is not a pointer, %v", dstVal.Kind())
+	targetVal := reflect.ValueOf(target)
+	if targetVal.Kind() != reflect.Ptr {
+		return fmt.Errorf("structify.Parse: target is not a pointer, %v", targetVal.Kind())
 	}
-	if dstVal.IsNil() {
-		return fmt.Errorf("structify.Parse: dst cannot be nil")
+	if targetVal.IsNil() {
+		return fmt.Errorf("structify.Parse: target cannot be nil")
 	}
 
-	dstElemVal := dstVal.Elem()
+	targetElemVal := targetVal.Elem()
 
-	switch dstElemVal.Kind() {
+	switch targetElemVal.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		err := p.setAnyInt(src, dstElemVal)
+		err := p.setAnyInt(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Float32, reflect.Float64:
-		err := p.setAnyFloat(src, dstElemVal)
+		err := p.setAnyFloat(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.String:
-		err := p.setAnyString(src, dstElemVal)
+		err := p.setAnyString(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Bool:
-		err := p.setAnyBool(src, dstElemVal)
+		err := p.setAnyBool(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Struct:
-		err := p.setAnyStruct(src, dstElemVal)
+		err := p.setAnyStruct(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Slice:
-		err := p.setAnySlice(src, dstElemVal)
+		err := p.setAnySlice(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Interface:
-		err := p.setAnyInterface(src, dstElemVal)
+		err := p.setAnyInterface(source, targetElemVal)
 		if err != nil {
 			return fmt.Errorf("structify.Parse: %v", err)
 		}
 	case reflect.Pointer:
-		if src == nil {
-			dstElemVal.Set(reflect.Zero(dstElemVal.Type()))
+		if source == nil {
+			targetElemVal.Set(reflect.Zero(targetElemVal.Type()))
 		} else {
-			dstElemVal.Set(reflect.New(dstElemVal.Type().Elem()))
-			err := p.parseNormalizedSource(src, dstElemVal.Interface())
+			targetElemVal.Set(reflect.New(targetElemVal.Type().Elem()))
+			err := p.parseNormalizedSource(source, targetElemVal.Interface())
 			if err != nil {
 				return fmt.Errorf("structify.Parse: %v", err)
 			}
 		}
 
 	default:
-		return fmt.Errorf("cannot assign %T to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %T to %v", source, targetVal.Type())
 	}
 
 	return nil
 }
 
-func normalizeSource(src any) (any, error) {
-	switch src := src.(type) {
+func normalizeSource(source any) (any, error) {
+	switch source := source.(type) {
 	case string:
-		return src, nil
+		return source, nil
 
 	case int:
-		return int64(src), nil
+		return int64(source), nil
 	case int8:
-		return int64(src), nil
+		return int64(source), nil
 	case int16:
-		return int64(src), nil
+		return int64(source), nil
 	case int32:
-		return int64(src), nil
+		return int64(source), nil
 	case int64:
-		return int64(src), nil
+		return int64(source), nil
 
 	// Not supporting unsigned int inputs to avoid having to deal with overflow for uint and uint64.
 
 	case float32:
-		return float64(src), nil
+		return float64(source), nil
 	case float64:
-		return float64(src), nil
+		return float64(source), nil
 
 	case bool:
-		return src, nil
+		return source, nil
 
 	case map[string]any:
-		normSrc := make(map[string]any, len(src))
-		for k, v := range src {
+		normSrc := make(map[string]any, len(source))
+		for k, v := range source {
 			normV, err := normalizeSource(v)
 			if err != nil {
 				return nil, err
@@ -191,16 +191,16 @@ func normalizeSource(src any) (any, error) {
 		return normSrc, nil
 
 	case map[string]string:
-		newMap := make(map[string]any, len(src))
-		for k, v := range src {
+		newMap := make(map[string]any, len(source))
+		for k, v := range source {
 			newMap[k] = v
 		}
 		return newMap, nil
 
 	case []any:
-		normSrc := make([]any, len(src))
-		for i := range src {
-			normV, err := normalizeSource(src[i])
+		normSrc := make([]any, len(source))
+		for i := range source {
+			normV, err := normalizeSource(source[i])
 			if err != nil {
 				return nil, err
 			}
@@ -209,11 +209,11 @@ func normalizeSource(src any) (any, error) {
 		return normSrc, nil
 	}
 
-	srcVal := reflect.ValueOf(src)
-	if srcVal.Kind() == reflect.Slice {
-		newSlice := make([]any, srcVal.Len())
-		for i := 0; i < srcVal.Len(); i++ {
-			normSrcVal, err := normalizeSource(srcVal.Index(i).Interface())
+	sourceVal := reflect.ValueOf(source)
+	if sourceVal.Kind() == reflect.Slice {
+		newSlice := make([]any, sourceVal.Len())
+		for i := 0; i < sourceVal.Len(); i++ {
+			normSrcVal, err := normalizeSource(sourceVal.Index(i).Interface())
 			if err != nil {
 				return nil, err
 			}
@@ -223,135 +223,135 @@ func normalizeSource(src any) (any, error) {
 	}
 
 	// Normalize typed nils into untyped nils
-	if src == nil || srcVal.IsNil() {
+	if source == nil || sourceVal.IsNil() {
 		return nil, nil
 	}
 
-	return nil, fmt.Errorf("unsupported source type: %T", src)
+	return nil, fmt.Errorf("unsupported source type: %T", source)
 }
 
-func (p *Parser) parseString(src string, dstVal reflect.Value) error {
-	switch dstVal.Kind() {
+func (p *Parser) parseString(source string, targetVal reflect.Value) error {
+	switch targetVal.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n, err := strconv.ParseInt(src, 10, 64)
+		n, err := strconv.ParseInt(source, 10, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 		}
-		if dstVal.OverflowInt(n) {
-			return fmt.Errorf("%v overflows %v", n, dstVal.Type())
+		if targetVal.OverflowInt(n) {
+			return fmt.Errorf("%v overflows %v", n, targetVal.Type())
 		}
-		dstVal.SetInt(n)
+		targetVal.SetInt(n)
 
 	case reflect.Float32, reflect.Float64:
-		n, err := strconv.ParseFloat(src, 64)
+		n, err := strconv.ParseFloat(source, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 		}
-		dstVal.SetFloat(n)
+		targetVal.SetFloat(n)
 
 	case reflect.String:
-		dstVal.SetString(src)
+		targetVal.SetString(source)
 	default:
-		return fmt.Errorf("cannot assign %T to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %T to %v", source, targetVal.Type())
 	}
 
 	return nil
 }
 
-func (p *Parser) setAnyInt(src any, dstVal reflect.Value) error {
+func (p *Parser) setAnyInt(source any, targetVal reflect.Value) error {
 	var n int64
-	switch src := src.(type) {
+	switch source := source.(type) {
 	case int64:
-		n = src
+		n = source
 	case float64:
-		n = int64(src)
-		if src != float64(n) {
-			return fmt.Errorf("%v is not an integer", src)
+		n = int64(source)
+		if source != float64(n) {
+			return fmt.Errorf("%v is not an integer", source)
 		}
 	case string:
 		var err error
-		n, err = strconv.ParseInt(src, 10, 64)
+		n, err = strconv.ParseInt(source, 10, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 		}
 	default:
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
-	if dstVal.OverflowInt(n) {
-		return fmt.Errorf("%v overflows %v", n, dstVal.Type())
+	if targetVal.OverflowInt(n) {
+		return fmt.Errorf("%v overflows %v", n, targetVal.Type())
 	}
-	dstVal.SetInt(n)
+	targetVal.SetInt(n)
 
 	return nil
 }
 
-func (p *Parser) setAnyFloat(src any, dstVal reflect.Value) error {
+func (p *Parser) setAnyFloat(source any, targetVal reflect.Value) error {
 	var n float64
-	switch src := src.(type) {
+	switch source := source.(type) {
 	case float64:
-		n = src
+		n = source
 	case int64:
-		n = float64(src)
+		n = float64(source)
 	case string:
 		var err error
-		n, err = strconv.ParseFloat(src, 64)
+		n, err = strconv.ParseFloat(source, 64)
 		if err != nil {
-			return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+			return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 		}
 	default:
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
-	dstVal.SetFloat(n)
+	targetVal.SetFloat(n)
 
 	return nil
 }
 
-func (p *Parser) setAnyString(src any, dstVal reflect.Value) error {
+func (p *Parser) setAnyString(source any, targetVal reflect.Value) error {
 	var s string
-	switch src := src.(type) {
+	switch source := source.(type) {
 	case string:
-		s = src
+		s = source
 	case int64:
-		s = strconv.FormatInt(src, 10)
+		s = strconv.FormatInt(source, 10)
 	case float64:
-		s = strconv.FormatFloat(src, 'f', -1, 64)
+		s = strconv.FormatFloat(source, 'f', -1, 64)
 	default:
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
-	dstVal.SetString(s)
+	targetVal.SetString(s)
 
 	return nil
 }
 
-func (p *Parser) setAnyBool(src any, dstVal reflect.Value) error {
+func (p *Parser) setAnyBool(source any, targetVal reflect.Value) error {
 	var b bool
-	switch src := src.(type) {
+	switch source := source.(type) {
 	case bool:
-		b = src
+		b = source
 	default:
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
-	dstVal.SetBool(b)
+	targetVal.SetBool(b)
 
 	return nil
 }
 
-func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
-	var srcMap map[string]any
+func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
+	var sourceMap map[string]any
 	var ok bool
-	if srcMap, ok = src.(map[string]any); !ok {
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+	if sourceMap, ok = source.(map[string]any); !ok {
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
 
-	normalizedNameToMapKey := make(map[string]string, len(srcMap))
-	for key := range srcMap {
+	normalizedNameToMapKey := make(map[string]string, len(sourceMap))
+	for key := range sourceMap {
 		normalizedNameToMapKey[normalizeFieldName(key)] = key
 	}
 
-	destElemType := dstVal.Type()
+	targetElemType := targetVal.Type()
 
-	for i := 0; i < destElemType.NumField(); i++ {
-		structField := destElemType.Field(i)
+	for i := 0; i < targetElemType.NumField(); i++ {
+		structField := targetElemType.Field(i)
 		var mapKey string
 		if tag, ok := structField.Tag.Lookup(structTagKey); ok {
 			if tag == "-" {
@@ -363,14 +363,14 @@ func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
 			mapKey = normalizedNameToMapKey[normalizedName]
 		}
 
-		mapValue, found := srcMap[mapKey]
+		mapValue, found := sourceMap[mapKey]
 		if found {
-			err := p.parseNormalizedSource(mapValue, dstVal.Field(i).Addr().Interface())
+			err := p.parseNormalizedSource(mapValue, targetVal.Field(i).Addr().Interface())
 			if err != nil {
 				return fmt.Errorf("unable to set value for %s: %v", structField.Name, err)
 			}
 		} else {
-			field := dstVal.Field(i).Addr().Interface()
+			field := targetVal.Field(i).Addr().Interface()
 			if mfc, ok := field.(MissingFieldScanner); ok {
 				mfc.ScanMissingField()
 			} else {
@@ -383,16 +383,16 @@ func (p *Parser) setAnyStruct(src any, dstVal reflect.Value) error {
 	return nil
 }
 
-func (p *Parser) setAnySlice(src any, dstVal reflect.Value) error {
-	srcVal := reflect.ValueOf(src)
-	if srcVal.Kind() != reflect.Slice {
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+func (p *Parser) setAnySlice(source any, targetVal reflect.Value) error {
+	sourceVal := reflect.ValueOf(source)
+	if sourceVal.Kind() != reflect.Slice {
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
 
-	dstVal.Set(reflect.MakeSlice(dstVal.Type(), srcVal.Len(), srcVal.Cap()))
+	targetVal.Set(reflect.MakeSlice(targetVal.Type(), sourceVal.Len(), sourceVal.Cap()))
 
-	for i := 0; i < srcVal.Len(); i++ {
-		err := p.parseNormalizedSource(srcVal.Index(i).Interface(), dstVal.Index(i).Addr().Interface())
+	for i := 0; i < sourceVal.Len(); i++ {
+		err := p.parseNormalizedSource(sourceVal.Index(i).Interface(), targetVal.Index(i).Addr().Interface())
 		if err != nil {
 			return fmt.Errorf("cannot assign [%d]: %v", i, err)
 		}
@@ -401,14 +401,14 @@ func (p *Parser) setAnySlice(src any, dstVal reflect.Value) error {
 	return nil
 }
 
-func (p *Parser) setAnyInterface(src any, dstVal reflect.Value) error {
-	srcVal := reflect.ValueOf(src)
+func (p *Parser) setAnyInterface(source any, targetVal reflect.Value) error {
+	sourceVal := reflect.ValueOf(source)
 
-	if !srcVal.CanConvert(dstVal.Type()) {
-		return fmt.Errorf("cannot assign %v to %v", src, dstVal.Type())
+	if !sourceVal.CanConvert(targetVal.Type()) {
+		return fmt.Errorf("cannot assign %v to %v", source, targetVal.Type())
 	}
 
-	dstVal.Set(srcVal.Convert(dstVal.Type()))
+	targetVal.Set(sourceVal.Convert(targetVal.Type()))
 
 	return nil
 }
