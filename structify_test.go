@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/errortree"
 	"github.com/jackc/structify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,12 +59,14 @@ func TestParserParsesIntoStruct_MissingRequiredField(t *testing.T) {
 	var p Person
 	err := parser.Parse(map[string]any{"name": "Jack"}, &p)
 	require.Error(t, err)
-	var srcErr *structify.StructAssignmentError
-	require.ErrorAs(t, err, &srcErr)
-	fieldNameErrorMap := srcErr.FieldNameErrorMap()
-	require.Len(t, fieldNameErrorMap, 2)
-	require.Equal(t, "missing value", fieldNameErrorMap["FirstName"].Error())
-	require.Equal(t, "missing value", fieldNameErrorMap["LastName"].Error())
+	var errNode *errortree.Node
+	require.ErrorAs(t, err, &errNode)
+	allErrors := errNode.AllErrors()
+	require.Len(t, allErrors, 2)
+	require.Equal(t, []any{"FirstName"}, allErrors[0].Path)
+	require.EqualError(t, allErrors[0].Err, "missing value")
+	require.Equal(t, []any{"LastName"}, allErrors[1].Path)
+	require.EqualError(t, allErrors[1].Err, "missing value")
 }
 
 func TestParserParsesIntoStruct_MissingOptionalField(t *testing.T) {
@@ -431,19 +434,14 @@ func TestParserParseReturnsSliceAssignmentError(t *testing.T) {
 	var target []int32
 	err := parser.Parse(source, &target)
 	require.Error(t, err)
-	var sliceAssignmentError *structify.SliceAssignmentError
-	require.ErrorAs(t, err, &sliceAssignmentError)
-	elementErrors := sliceAssignmentError.ElementErrors()
-	require.Len(t, elementErrors, 2)
-	require.Equal(t, 1, elementErrors[0].Index)
-	require.ErrorIs(t, elementErrors[0].Err, structify.ErrCannotConvertToInteger)
-	require.Equal(t, 3, elementErrors[1].Index)
-	require.ErrorIs(t, elementErrors[1].Err, structify.ErrCannotConvertToInteger)
-
-	indexErrorMap := sliceAssignmentError.IndexErrorMap()
-	require.Len(t, indexErrorMap, 2)
-	require.ErrorIs(t, indexErrorMap[1], structify.ErrCannotConvertToInteger)
-	require.ErrorIs(t, indexErrorMap[3], structify.ErrCannotConvertToInteger)
+	var errTree *errortree.Node
+	require.ErrorAs(t, err, &errTree)
+	allErrors := errTree.AllErrors()
+	require.Len(t, allErrors, 2)
+	require.Equal(t, []any{1}, allErrors[0].Path)
+	require.ErrorIs(t, allErrors[0].Err, structify.ErrCannotConvertToInteger)
+	require.Equal(t, []any{3}, allErrors[1].Path)
+	require.ErrorIs(t, allErrors[1].Err, structify.ErrCannotConvertToInteger)
 }
 
 func TestParserParsesIntoAny(t *testing.T) {

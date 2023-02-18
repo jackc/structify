@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/jackc/errortree"
 )
 
 const structTagKey = "structify"
@@ -16,94 +18,6 @@ var DefaultParser *Parser
 
 func init() {
 	DefaultParser = &Parser{}
-}
-
-// StructAssignmentError contains all errors that occurred assigning a struct's fields.
-type StructAssignmentError struct {
-	fieldErrors []*FieldError
-}
-
-// FieldErrors returns the field errors.
-func (e *StructAssignmentError) FieldErrors() []*FieldError {
-	return e.fieldErrors
-}
-
-// FieldNameErrorMap returns a map of field name to error.
-func (e *StructAssignmentError) FieldNameErrorMap() map[string]error {
-	m := make(map[string]error, len(e.fieldErrors))
-	for _, fieldErr := range e.fieldErrors {
-		m[fieldErr.FieldName] = fieldErr.Err
-	}
-	return m
-}
-
-func (e *StructAssignmentError) Error() string {
-	sb := &strings.Builder{}
-	for i, fieldErr := range e.fieldErrors {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(fieldErr.Error())
-	}
-
-	return sb.String()
-}
-
-// FieldError represents an error that occurred assigning to a field of a struct.
-type FieldError struct {
-	FieldName string
-	Err       error
-}
-
-func (e *FieldError) Error() string {
-	return fmt.Sprintf("%s: %v", e.FieldName, e.Err)
-}
-
-func (e *FieldError) Unwrap() error {
-	return e.Err
-}
-
-// SliceAssignmentError contains all errors that occurred assigning a slices elements.
-type SliceAssignmentError struct {
-	elementErrors []*ElementError
-}
-
-func (e *SliceAssignmentError) ElementErrors() []*ElementError {
-	return e.elementErrors
-}
-
-func (e *SliceAssignmentError) IndexErrorMap() map[int]error {
-	m := make(map[int]error, len(e.elementErrors))
-	for _, elErr := range e.elementErrors {
-		m[elErr.Index] = elErr.Err
-	}
-	return m
-}
-
-func (e *SliceAssignmentError) Error() string {
-	sb := &strings.Builder{}
-	for i, elErr := range e.elementErrors {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(elErr.Error())
-	}
-
-	return sb.String()
-}
-
-// ElementError represents an erorr that occurred assigning to a particular element of a slice.
-type ElementError struct {
-	Index int
-	Err   error
-}
-
-func (e *ElementError) Error() string {
-	return fmt.Sprintf("%d: %v", e.Index, e.Err)
-}
-
-func (e *ElementError) Unwrap() error {
-	return e.Err
 }
 
 // AssignmentError represents an error that occurred assigning a value.
@@ -444,7 +358,7 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 	}
 
 	targetElemType := targetVal.Type()
-	var fieldErrors []*FieldError
+	errNode := &errortree.Node{}
 
 	for i := 0; i < targetElemType.NumField(); i++ {
 		structField := targetElemType.Field(i)
@@ -466,20 +380,20 @@ func (p *Parser) setAnyStruct(source any, targetVal reflect.Value) error {
 		if found {
 			err := p.parseNormalizedSource(mapValue, targetVal.Field(i).Addr().Interface())
 			if err != nil {
-				fieldErrors = append(fieldErrors, &FieldError{FieldName: fieldName, Err: err})
+				errNode.Add([]any{fieldName}, err)
 			}
 		} else {
 			field := targetVal.Field(i).Addr().Interface()
 			if mfc, ok := field.(MissingFieldScanner); ok {
 				mfc.ScanMissingField()
 			} else {
-				fieldErrors = append(fieldErrors, &FieldError{FieldName: fieldName, Err: ErrMissing})
+				errNode.Add([]any{fieldName}, ErrMissing)
 			}
 		}
 	}
 
-	if len(fieldErrors) > 0 {
-		return &StructAssignmentError{fieldErrors: fieldErrors}
+	if len(errNode.Attributes) > 0 {
+		return errNode
 	}
 
 	return nil
@@ -493,16 +407,16 @@ func (p *Parser) setAnySlice(source any, targetVal reflect.Value) error {
 
 	targetVal.Set(reflect.MakeSlice(targetVal.Type(), sourceVal.Len(), sourceVal.Cap()))
 
-	var elementErrors []*ElementError
+	errNode := &errortree.Node{}
 	for i := 0; i < sourceVal.Len(); i++ {
 		err := p.parseNormalizedSource(sourceVal.Index(i).Interface(), targetVal.Index(i).Addr().Interface())
 		if err != nil {
-			elementErrors = append(elementErrors, &ElementError{Index: i, Err: err})
+			errNode.Add([]any{i}, err)
 		}
 	}
 
-	if len(elementErrors) > 0 {
-		return &SliceAssignmentError{elementErrors: elementErrors}
+	if len(errNode.Elements) > 0 {
+		return errNode
 	}
 
 	return nil
