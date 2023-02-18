@@ -1,3 +1,4 @@
+// Package structify parses loosely-typed data into structs.
 package structify
 
 import (
@@ -17,14 +18,17 @@ func init() {
 	DefaultParser = &Parser{}
 }
 
+// StructAssignmentError contains all errors that occurred assigning a struct's fields.
 type StructAssignmentError struct {
 	fieldErrors []*FieldError
 }
 
+// FieldErrors returns the field errors.
 func (e *StructAssignmentError) FieldErrors() []*FieldError {
 	return e.fieldErrors
 }
 
+// FieldNameErrorMap returns a map of field name to error.
 func (e *StructAssignmentError) FieldNameErrorMap() map[string]error {
 	m := make(map[string]error, len(e.fieldErrors))
 	for _, fieldErr := range e.fieldErrors {
@@ -45,6 +49,7 @@ func (e *StructAssignmentError) Error() string {
 	return sb.String()
 }
 
+// FieldError represents an error that occurred assigning to a field of a struct.
 type FieldError struct {
 	FieldName string
 	Err       error
@@ -58,6 +63,7 @@ func (e *FieldError) Unwrap() error {
 	return e.Err
 }
 
+// SliceAssignmentError contains all errors that occurred assigning a slices elements.
 type SliceAssignmentError struct {
 	elementErrors []*ElementError
 }
@@ -86,6 +92,7 @@ func (e *SliceAssignmentError) Error() string {
 	return sb.String()
 }
 
+// ElementError represents an erorr that occurred assigning to a particular element of a slice.
 type ElementError struct {
 	Index int
 	Err   error
@@ -99,6 +106,7 @@ func (e *ElementError) Unwrap() error {
 	return e.Err
 }
 
+// AssignmentError represents an error that occurred assigning a value.
 type AssignmentError struct {
 	Source     any
 	TargetType reflect.Type
@@ -123,6 +131,7 @@ var (
 
 // StructifyScanner allows a type to control how it is parsed.
 type StructifyScanner interface {
+	// StructifyScan scans source into itself. source may be string, int64, float64, bool, map[string]any, []any, or nil.
 	StructifyScan(parser *Parser, source any) error
 }
 
@@ -138,14 +147,18 @@ type MissingFieldScanner interface {
 	ScanMissingField()
 }
 
+// Parse delegates to DefaultParser. It is a simple convenience function for when no custom parse logic is needed. Parse
+// is safe for concurrent usage.
 func Parse(m map[string]any, target any) error {
 	return DefaultParser.Parse(m, target)
 }
 
+// Parser is a type that can parse simple types into structs.
 type Parser struct {
 	typeScannerFuncs map[reflect.Type]TypeScannerFunc
 }
 
+// TypeScannerFunc parses source and assigns it to target.
 type TypeScannerFunc func(parser *Parser, source, target any) error
 
 // RegisterTypeScanner configures parser to call fn for any scan target with the same type as value.
@@ -157,7 +170,12 @@ func (p *Parser) RegisterTypeScanner(value any, fn TypeScannerFunc) {
 	p.typeScannerFuncs[reflect.TypeOf(value)] = fn
 }
 
-// Parse
+// Parse parses source into target. source may be any string type, integer type, float type, bool, map[string]any,
+// map[string]string, []any, or slice that can be converted to []any, or nil. target must be a pointer. source and
+// target must be compatible types such as map[string]any and pointer to struct.
+//
+// By default, all fields in a target struct must be present in source. Optional fields must implement the
+// MissingFieldScanner interface. This can be done in a generic fashion with the Optional type.
 func (p *Parser) Parse(source, target any) error {
 	source, err := normalizeSource(source)
 	if err != nil {

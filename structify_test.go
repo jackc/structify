@@ -570,3 +570,24 @@ func TestParserParsesUsesRegisteredTypeScannerToOverrideType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "overridden", s)
 }
+
+func ExampleParser_Parse_struct() {
+	var person struct {
+		Name      string
+		Age       int16
+		Inventory []string `structify:"items"`
+		Skip      string   `structify:"-"`
+	}
+
+	parser := &structify.Parser{}
+	err := parser.Parse(map[string]any{"name": "John", "age": 21, "items": []string{"watch", "wallet"}}, &person)
+	if err != nil {
+		fmt.Printf("parser.Parse error: %v", err)
+		return
+	}
+
+	fmt.Println(person.Name, person.Age, person.Inventory)
+
+	// Output:
+	// John 21 [watch wallet]
+}
