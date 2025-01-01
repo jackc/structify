@@ -337,6 +337,12 @@ func (p *Parser) setAnyBool(source any, targetVal reflect.Value) error {
 	switch source := source.(type) {
 	case bool:
 		b = source
+	case string:
+		var err error
+		b, err = strconv.ParseBool(source)
+		if err != nil {
+			return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
+		}
 	default:
 		return &AssignmentError{Source: source, TargetType: targetVal.Type(), Err: ErrUnsupportedTypeConversion}
 	}

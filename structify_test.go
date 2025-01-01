@@ -275,6 +275,10 @@ func TestParserParsesIntoStruct_BoolField(t *testing.T) {
 	}{
 		{mapValue: true, structValue: true},
 		{mapValue: false, structValue: false},
+		{mapValue: "true", structValue: true},
+		{mapValue: "false", structValue: false},
+		{mapValue: "1", structValue: true},
+		{mapValue: "0", structValue: false},
 	} {
 		var p Person
 		err := parser.Parse(map[string]any{"Alive": tt.mapValue}, &p)
